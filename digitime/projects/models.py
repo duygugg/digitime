@@ -4,6 +4,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from consultants.models import Consultant
 from datetime import datetime, date
+from dbview.models import DbView
 
 
 # Create your models here.
@@ -25,10 +26,26 @@ class LeaveTime(models.Model):
         ('NH', 'National Holiday')
 
     ]
+
     permissions = models.CharField(max_length=3, choices=choices_permissions, default='NA')
+
+    permissionLabel = models.CharField( max_length=255, blank=True, null=True)
 
     def __str__(self):
         return self.permissions
+
+
+
+class TimesheetListObject(models.Model):
+    id = models.IntegerField(primary_key=True)
+    calendardate = models.CharField(db_column='calendardate', max_length = 4000, blank = True, null = True)
+    work_hour = models.FloatField(db_column='work_hour')
+    permissionLabel = models.CharField(db_column='permissionLabel',max_length=255, blank=True,
+                                       null=True)  # Field name made lowercase.
+
+    class Meta:
+        managed = False  # Created from a view. Don't
+        db_table = 'getList'
 
 
 class Status(models.Model):

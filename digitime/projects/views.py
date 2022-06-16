@@ -9,9 +9,11 @@ from rest_framework.views import APIView
 from .serializers import ProjectSerializer, TaskSerializer, ConsultantSubTaskSerializer, TimeSheetSerializer, \
     SubTaskSerializer, LeaveTimeSerializer
 from rest_framework import generics, status, serializers
-from .models import Projects, Task, SubTask, ConsultantSubtask, TimeSheet, LeaveTime
+from .models import Projects, Task, SubTask, ConsultantSubtask, TimeSheet, LeaveTime, TimesheetListObject
 from consultants.models import Consultant
 import json
+# import library
+from django.db import connection
 
 
 # Create your views here.
@@ -58,11 +60,11 @@ class ListConsultantSubTasks(GenericAPIView):
         # return Response({"data": "ok"})
 
         if consultant.exists():
-            consultant_object = consultant [ 0 ]
+            consultant_object = consultant[0]
             consultant_subtask_object = ConsultantSubtask.objects.filter(consultant=consultant_object)
             if consultant_subtask_object.exists():
 
-                subtasks_data = [ {
+                subtasks_data = [{
                     "consultant_subtaskID": item.id,
                     "consultant": item.consultant.email,
                     "can_login": item.consultant.can_login,
@@ -73,7 +75,7 @@ class ListConsultantSubTasks(GenericAPIView):
                     "subtaskID": item.subtask.id,
                     "subtask": item.subtask.name,
 
-                } for item in consultant_subtask_object ]
+                } for item in consultant_subtask_object]
                 print(subtasks_data)
                 return Response({"data": subtasks_data})
 
@@ -89,9 +91,46 @@ class ListSubtasks(generics.ListAPIView):
     serializer_class = SubTaskSerializer
 
 
-class ListTimeSheet(generics.ListAPIView):
-    queryset = TimeSheet.objects.all()
-    serializer_class = TimeSheetSerializer
+class ListTimeSheet(GenericAPIView):
+
+    def get(self, request):
+        # Create the cursor
+        cursor = connection.cursor()
+
+        # Write the SQL code
+        sql_string = 'SELECT * FROM getList'
+
+        # Execute the SQL
+        cursor.execute(sql_string)
+        result = cursor.fetchall()
+
+        consultant_email = self.request.GET.get('email')
+
+        consultant = Consultant.objects.filter(email=consultant_email)
+
+        if consultant.exists():
+            print(consultant)
+            consultant_id = consultant[0].id
+
+            timesheet = [x for x in result if x[0] == consultant_id]
+            print(len(timesheet), ",", len([x for x in result if x[1] == 1]))
+
+            list = [
+                {
+                    "id":id,
+                    "consultant_id": x[0],
+                    "subtask_id": x[1],
+                    "date": x[4],
+                    "hour": x[5],
+                    "permission": x[6]
+                } for id,x in enumerate(timesheet)
+            ]
+
+            return Response({"data": list, "status": 200})
+
+        else:
+
+            return Response({"data": "No timesheet value is entered for the consultant", "status": 404})
 
 
 class CreateConsultantSubTask(generics.ListCreateAPIView):
@@ -100,8 +139,8 @@ class CreateConsultantSubTask(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         if serializer.is_valid():
-            consultant = serializer.validated_data [ "consultant" ]
-            sub_task = serializer.validated_data [ "subtask" ]
+            consultant = serializer.validated_data["consultant"]
+            sub_task = serializer.validated_data["subtask"]
             # START DATE FIELD WOULD BE ASSIGNED AS TODAY'S DATA AS DEFAULT TO PREVENT KEY ERROR
             start_date = serializer.validated_data.get("start_date", date.today())
             # SAME IT GOES FOR END DATE, TAKEN AS TOMORROW'S DATE AS DEFAULT
@@ -129,11 +168,6 @@ class CreateConsultantSubTask(generics.ListCreateAPIView):
                 raise serializers.ValidationError('No sub task with such id exists')
 
 
-class ListTimeSheet(generics.ListAPIView):
-    queryset = TimeSheet.objects.all()
-    serializer_class = TimeSheetSerializer
-
-
 class ListLeaveTime(generics.ListAPIView):
     queryset = LeaveTime.objects.all()
     serializer_class = LeaveTimeSerializer
@@ -142,7 +176,7 @@ class ListLeaveTime(generics.ListAPIView):
     #     print(e.get_permissions_display(),e)
     def get(self, serializer):
         queryset = LeaveTime.objects.all()
-        return Response({"data": [ {"value": e.id, "label": e.get_permissions_display()} for e in queryset ]})
+        return Response({"data": [{"value": e.id, "label": e.get_permissions_display()} for e in queryset]})
 
 
 class CreateTimeSheet(generics.ListCreateAPIView):
@@ -160,10 +194,10 @@ class CreateTimeSheet(generics.ListCreateAPIView):
         else:
             print("data:", serializer)
             if serializer.is_valid():
-                consultant_subtask = serializer.validated_data [ "consultant_subtask" ]
-                work_hour_data = serializer.validated_data [ "work_hour" ]
-                calendar = serializer.validated_data [ "calendar" ]
-                leavetime = serializer.validated_data [ "leave_time" ]
+                consultant_subtask = serializer.validated_data["consultant_subtask"]
+                work_hour_data = serializer.validated_data["work_hour"]
+                calendar = serializer.validated_data["calendar"]
+                leavetime = serializer.validated_data["leave_time"]
                 print("received data:", consultant_subtask, work_hour_data, calendar, leavetime)
 
                 if ConsultantSubtask.objects.filter(id=consultant_subtask.id).exists():
